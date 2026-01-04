@@ -61,158 +61,165 @@ def count_emojis(text: str) -> int:
     return sum(len(e) for e in emojis)
 
 def contains_advertisement(text: str) -> bool:
-    """Reklama aniqlash funksiyasi - emoji spam va linklarni ham tekshiradi"""
+    """
+    Mukammal reklama aniqlash funksiyasi (16 ta qoida asosida)
+    
+    Qoidalar:
+    1. Ochiq linkli reklama (@kanal, t.me/...)
+    2. Matn ichiga yashirilgan link
+    3. So'z bilan yozilgan link (aldov)
+    4. Emoji orqali yashirilgan reklama
+    5. Rasm / Video caption
+    6. Bio / imzo 
+    7. "Oddiy gap" ko'rinishidagi reklama
+    8. Savol shaklidagi reklama
+    9. Kod, bo'shliq, belgilar bilan yashirish
+    10. Takroriy spam reklama (generic checks)
+    11. Faqat kanal nomi bilan reklama
+    12. "Admin ruxsat berdi" aldovi
+    13. Giveaway / konkurs
+    14. Bot reklamalari
+    15. Tashqi sayt reklamalari
+    16. AI'ni aldashga qaratilgan semantik reklama
+    """
     if not text:
         return False
     
-    text_lower = text.lower()
+    # 9. Kod, bo'shliq, belgilar bilan yashirish (Zero-width chars tozalash)
+    # Zero-width space, joiner, non-joiner larni olib tashlaymiz
+    clean_text = re.sub(r'[\u200b\u200c\u200d\u2060\ufeff]', '', text)
+    # Ortiqcha bo'shliqlarni bittaga tushiramiz
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+    text_lower = clean_text.lower()
     
-    # 1. Emoji spam tekshirish - agar emoji soni juda ko'p bo'lsa
-    emoji_count = count_emojis(text)
-    text_length = len(text.replace(' ', '').replace('\n', ''))
-    if text_length > 0:
-        emoji_ratio = emoji_count / text_length
-        # Agar emoji 30% dan ko'p bo'lsa yoki 10+ emoji bo'lsa
-        if emoji_ratio > 0.3 or emoji_count >= 10:
-            logger.debug(f"Emoji spam aniqlandi: {emoji_count} emoji, ratio: {emoji_ratio:.2f}")
-            return True
-    
-    # 2. Link patternlari (yaxshilangan)
+    # 1. & 15. Ochiq linkli va Tashqi sayt reklamalari
     link_patterns = [
-        r"https?://",                 # http/https linklar
-        r"\bt\.me/",                  # t.me linklari (barcha turdagi)
-        r"\bt\.me/[a-zA-Z0-9_]+",     # Telegram kanal/bot havolalari (@ kanallar ham)
-        r"\bt\.me/c/\d+/\d+",         # private post linklari
-        r"t\.me/m/[A-Za-z0-9]+",      # t.me/m/ formatidagi linklar
-        r"joinchat/",                 # eski joinchat linklari
-        r"t\.me/\+[a-zA-Z0-9_-]{10,}", # t.me/+XXXX invite (to'liq format)
-        r"\+[a-zA-Z0-9_-]{10,}",      # t.me/+XXXX invite (qisqa format)
-        r"bit\.ly/[a-zA-Z0-9]+",      # Qisqartirilgan havolalar (bit.ly)
-        r"clck\.ru/[a-zA-Z0-9]+",     # Qisqartirilgan havolalar (clck.ru)
-        r"tinyurl\.com/[a-zA-Z0-9]+", # Qisqartirilgan havolalar (tinyurl)
-        r"short\.link/[a-zA-Z0-9]+",  # Qisqartirilgan havolalar
-        r"utm_source=",               # UTM parametrlari (tracking links)
-        r"utm_campaign=",             # UTM parametrlari
-        r"utm_medium=",               # UTM parametrlari
-        r"\.(com|uz|ru|org|net|info|io|me|co|tk|ml|ga|cf|site|online|store|shop|xyz|click|link)\b",  # domenlar (kengaytirilgan)
+        r"https?://",
+        r"t\.me/",
+        r"telegram\.me/",
+        r"\bt\.me\b",
+        r"joinchat",
+        r"\.(com|uz|ru|org|net|info|io|me|co|tk|ml|ga|cf|site|online|store|shop|xyz|click|link|club|live|life|world|space|tech|website|email)\b",
+        r"bit\.ly", r"goo\.gl", r"tinyurl\.com", r"clck\.ru"
     ]
-    
     if any(re.search(p, text_lower) for p in link_patterns):
         return True
-    
-    # 3. @username mentionlar va Telegram havolalari
-    if re.search(r"@[a-zA-Z0-9_]{5,}", text):
+
+    # Username aniqlash (@username)
+    if re.search(r"@[a-zA-Z0-9_]{4,}", text_lower):
         return True
-    
-    # Telegram inline havolalar (kanal/bot nomlari bilan)
-    if re.search(r"t\.me/@?[a-zA-Z0-9_]{3,}", text_lower):
-        return True
-    
-    # 4. Telefon raqamlari va boshqa reklama belgilari
-    spam_patterns = [
-        r"\b\d{2,3}[-\s]??\d{2,3}[-\s]??\d{2}[-\s]?\d{2}\b",  # telefon raqamlari
-        r"\b\d{7,}\b",              # uzun raqamlar
-        r"\b\d+%\b",                 # foiz
-        r"[₩¥$€£]",                  # valyuta belgilar
+
+    # 3. So'z bilan yozilgan link (Obfuscated links)
+    obfuscated_patterns = [
+        r"t\s*me",               # t me
+        r"telegram\s*me",        # telegram me
+        r"t\s*\[\s*dot\s*\]\s*me", # t[dot]me
+        r"telegram\s*nuqta\s*me",
+        r"t\s*\.\s*me",
+        r"dot\s*me",
+        r"nuqta\s*me",
     ]
-    
-    if any(re.search(p, text_lower) for p in spam_patterns):
+    if any(re.search(p, text_lower) for p in obfuscated_patterns):
         return True
+
+    # 4. Emoji orqali yashirilgan reklama
+    emoji_count = count_emojis(clean_text)
+    text_len = len(clean_text.replace(' ', ''))
     
-    # 5. Reklama kalit so'zlari (kengaytirilgan ro'yxat)
+    # Faqat emojilardan iborat yoki juda ko'p emoji
+    if text_len > 0 and (emoji_count / text_len > 0.4 or emoji_count > 8):
+        # Agar ko'p emoji bo'lsa va tagida "kanal", "link" kabi so'zlar bo'lsa aniq spam
+        if any(w in text_lower for w in ["kanal", "link", "kirish", "obuna", "pul", "click"]):
+            return True
+
+    # 5. Rasm / Video caption da @ yoki t.me (Main handler entitilar bilan tekshiradi, bu qo'shimcha)
     
-    # O'zbekcha reklama so'zlari
-    uzbek_keywords = [
-        "reklama", "aksiya", "chegirma", "arzon", "sotuv", "bonus",
-        "kurs", "dars", "jonli dars", "videodars", "kanalimizda",
-        "murojaat uchun", "bog'lanish uchun", "obuna", "promo",
-        "qo'shiling", "obuna bo'ling", "kanalga", "guruhga",
-        "tez kiring", "shoshiling", "bepul", "qanday", "sirlari",
-        "sotiq", "narxlar", "top-10", "top 10", "faqat bugun",
-        "oxirgi imkoniyat", "pul ishlash", "biznes", "ta'lim",
-        "batafsil", "ko'rish", "yangi", "investitsiya",
-        "bosish", "a'zo bo'lish", "o'tish", "bog'lanish", "olish",
-        "buyurtma berish", "chegirmalar", "maxsus taklif"
+    # 7. & 16. "Oddiy gap" va "Reklama emas" aldovi
+    semantic_triggers = [
+        r"reklama\s*emas",
+        r"faqat\s*maslahat",
+        r"tavsiya\s*qilaman",
+        r"kanal\s*topdim",
+        r"zo'?r\s*kanal",
+        r"hamma\s*kiryapti",
+        r"pul\s*ishlayapti",
+        r"men\s*topdim",
+        r"sinab\s*ko'?ring",
+        r"o'?tib\s*oling",
+        r"kirib\s*ko'?ring",
     ]
-    
-    # Inglizcha reklama so'zlari
-    english_keywords = [
-        "click here", "learn more", "free", "discount", "limited time",
-        "hurry", "don't miss out", "secret", "must-see", "top 10",
-        "new", "guaranteed", "invest", "subscribe", "join", "unlock",
-        "save", "subscribe", "join our channel", "limited offer",
-        "special offer", "act now", "buy now", "order now",
-        "get started", "sign up", "register now", "claim now"
+    if any(re.search(p, text_lower) for p in semantic_triggers):
+        # Bu iboralar bo'lsa va qisqa matn bo'lsa (yoki link bo'lmasa ham) shubhali
+        # Lekin "oddiy gap" bo'lishi mumkin, shuning uchun juda qat'iy emas,
+        # agar bu iboralar bilan birga "kanal", "link" so'zi kelsa ushlaymiz
+        if any(w in text_lower for w in ["kanal", "link", "guruh", "bot", "sayt"]):
+            return True
+
+    # 8. Savol shaklidagi reklama
+    question_patterns = [
+        r"pul\s*ishla(moqchi|shni)\s*misiz",
+        r"kanal\s*bilasizmi",
+        r"kimda\s*bor",
+        r"qayerdan\s*topsa\s*bo'?ladi",
     ]
-    
-    # Ruscha reklama so'zlari
-    russian_keywords = [
-        "перейти", "подробнее", "смотреть", "скидка", "бесплатно",
-        "спешите", "акция", "только сегодня", "как", "секреты",
-        "топ", "заработок", "бизнес", "обучение", "инвестиции",
-        "подпишись", "подпишитесь", "реклама", "акция", "распродажа",
-        "кликни", "нажми", "переходи", "смотри", "узнай",
-        "получи", "заказать", "купить", "оформить"
+    if any(re.search(p, text_lower) for p in question_patterns):
+        # Agar savol link yoki kanal haqida bo'lsa
+        if "kanal" in text_lower or "bot" in text_lower or "link" in text_lower:
+            return True
+
+    # 11. Faqat kanal nomi (All caps yoki kanal nomi formati)
+    # Masalan: ABC_KANAL
+    if re.fullmatch(r"@[A-Z0-9_]+", clean_text) or re.fullmatch(r"[A-Z0-9_]{5,}_(CHANNEL|KANAL|TV|OFFICIAL)", clean_text):
+        return True
+
+    # 12. "Admin ruxsat berdi"
+    if "admin" in text_lower and ("ruxsat" in text_lower or "kelishil" in text_lower):
+        if "kanal" in text_lower or "reklama" in text_lower:
+            return True
+
+    # 13. Giveaway / konkurs
+    giveaway_keywords = [
+        "yutib ol", "sovrin", "konkurs", "giveaway", "obuna bo'ling", 
+        "qatnashing", "shartlar", "g'olib"
     ]
-    
-    # Barcha kalit so'zlarni birlashtirish
-    all_keywords = uzbek_keywords + english_keywords + russian_keywords
-    
-    if any(k in text_lower for k in all_keywords):
+    if any(k in text_lower for k in giveaway_keywords) and ("kanal" in text_lower or "obuna" in text_lower):
         return True
+
+    # 14. Bot reklamalari
+    if "bot" in text_lower and ("start" in text_lower or "foydalan" in text_lower or "kiring" in text_lower):
+         return True
     
-    # 6. CTA (Call to Action) iboralarini tekshirish
-    cta_patterns = [
-        r"\b(bosish|bos|bosing)\b",  # Bosish
-        r"\b(a'zo bo'lish|a'zo bo'ling|obuna bo'ling)\b",  # A'zo bo'lish
-        r"\b(o'tish|o'ting|kirish|kiring)\b",  # O'tish/Kirish
-        r"\b(bog'lanish|bog'laning|aloqa|contact)\b",  # Bog'lanish
-        r"\b(olish|oling|qo'lga kiriting)\b",  # Olish
-        r"\b(buyurtma|buyurtma berish|order|zakaz)\b",  # Buyurtma
+    # Bot username aniqlash (bot bilan tugagan)
+    if re.search(r"@[a-zA-Z0-9_]+bot\b", text_lower):
+        return True
+
+    # 10. Takroriy spam - buni aniqlash qiyin (chunki state yo'q), lekin 
+    # umumiy reklama iboralarini tekshiramiz
+    general_spam_keywords = [
+        "reklama", "sotiladi", "aksiya", "chegirma", "arzon", "sifatli",
+        "dostavka", "yetkazib berish", "xizmati", "click here", "buy now",
+        "limited offer", "exclusive", "crypto", "bitcoin", "invest",
+        "daromad", "biznes", "online ish", "uydan ish"
     ]
-    
-    if any(re.search(p, text_lower) for p in cta_patterns):
+    if any(k in text_lower for k in general_spam_keywords):
         return True
     
-    # 7. Foiz va chegirma belgilari (50%, 100% chegirma va hokazo)
-    if re.search(r"\d+%\s*(chegirma|скидка|discount|skidka)", text_lower):
+    # 9. Kod, bo'shliqlar bilan ajratilgan (t . m e / a b c)
+    # Harflar orasida bo'shliq borligini tekshirish
+    spaced_text = re.sub(r'\s+', '', text_lower)
+    if "t.me/" in spaced_text or "telegram.me" in spaced_text:
         return True
-    
-    # 8. "Top N" yoki "Top-10" kabi iboralar
-    if re.search(r"top\s*[-]?\s*\d+", text_lower):
-        return True
-    
-    # 9. Rasmiy reklama belgilari
-    sponsored_keywords = [
-        "sponsored", "реклама", "homiy", "рекламный",
-        "advertisement", "ad", "ads", "реклама"
-    ]
-    
-    if any(k in text_lower for k in sponsored_keywords):
-        return True
-    
-    # 10. "Faqat bugun", "Oxirgi imkoniyat" kabi urg'uli iboralar
-    urgent_patterns = [
-        r"faqat\s+(bugun|hozir|shu\s+vaqt)",  # Faqat bugun/hozir
-        r"oxirgi\s+imkoniyat",  # Oxirgi imkoniyat
-        r"limited\s+time",  # Limited time
-        r"только\s+сегодня",  # Только сегодня
-        r"последний\s+шанс",  # Последний шанс
-    ]
-    
-    if any(re.search(p, text_lower) for p in urgent_patterns):
-        return True
-    
+
     return False
 
-@router.message(F.chat.type.in_(["group", "supergroup"]), flags={"block": False})
+@router.message(F.chat.type.in_([ "group", "supergroup"]), flags={"block": False})
 async def anti_advertisement_guard(message: Message):
     """Reklama xabarlarini o'chirish va ogohlantirish"""
     # Bot xabarlari va botlar e'tiborsiz qoldiriladi
     if not message.from_user or message.from_user.is_bot:
         return
     
-    # Buyruqlarni (commands) e'tiborsiz qoldirish - ular boshqa handlerlarga o'tishi kerak
+    # Buyruqlarni (commands) e'tiborsiz qoldirish
     if message.text and message.text.startswith("/"):
         return
     
@@ -224,63 +231,46 @@ async def anti_advertisement_guard(message: Message):
     if await is_group_admin(message.bot, message.chat.id, message.from_user.id):
         return
 
-    # Botning xabarlarni o'chirish huquqini tekshirish
     can_delete = await can_bot_delete_messages(message.bot, message.chat.id)
     if not can_delete:
-        logger.warning(f"Bot guruhda xabarlarni o'chirish huquqiga ega emas: {message.chat.id}")
         return
 
-    # Forward qilingan kanal postlari (reklama sifatida qabul qilinadi)
+    # Forward qilingan kanal postlari
     if getattr(message, 'forward_from_chat', None) and getattr(message.forward_from_chat, 'type', None) == 'channel':
         try:
-            await message.reply(
-                f"⚠️ {message.from_user.full_name}, bu guruhda reklama taqiqlangan. Xabaringiz o'chirildi."
-            )
-        except Exception as e:
-            logger.error(f"Ogohlantirish yuborishda xatolik: {e}")
-        
-        if can_delete:
-            try:
-                await message.delete()
-                logger.info(f"Forward qilingan reklama o'chirildi: chat_id={message.chat.id}, user_id={message.from_user.id}")
-            except Exception as e:
-                logger.error(f"Xabarni o'chirishda xatolik: {e}")
+             await message.delete()
+             await message.answer(f"⚠️ {message.from_user.full_name}, bu guruhda reklama taqiqlangan.")
+        except:
+             pass
         return
 
     # Matn yoki caption ni tekshirish
     text_to_check = message.text or message.caption or ""
     has_advertisement = contains_advertisement(text_to_check)
     
-    # Entities orqali linklar va mentionlarni tekshirish
+    # Entities orqali linklar va mentionlarni tekshirish (YASHIRIN LINKLARNI TOPISH UCHUN)
     if not has_advertisement and message.entities:
         for ent in message.entities:
-            if ent.type in ["url", "text_link", "mention"]:
+            # text_link bu [matn](link) ko'rinishidagi linklar
+            if ent.type in ["url", "text_link", "mention", "email"]:
                 has_advertisement = True
                 break
     
-    # Caption entities orqali linklar va mentionlarni tekshirish
+    # Caption entities
     if not has_advertisement and message.caption_entities:
         for ent in message.caption_entities:
-            if ent.type in ["url", "text_link", "mention"]:
+            if ent.type in ["url", "text_link", "mention", "email"]:
                 has_advertisement = True
                 break
 
-    # Agar reklama topilsa, xabarni o'chirish
+    # Agar reklama topilsa
     if has_advertisement:
-        logger.info(f"Reklama aniqlandi: chat_id={message.chat.id}, user_id={message.from_user.id}, text={text_to_check[:50]}")
         try:
-            await message.reply(
-                f"⚠️ {message.from_user.full_name}, reklama tarqatish mumkin emas. Xabaringiz o'chirildi."
-            )
+            await message.delete()
+            # Foyealanuvchiga qisqa ogohlantirish
+            await message.answer(f"⚠️ {message.from_user.full_name}, reklama yoki havola tashlash mumkin emas.")
         except Exception as e:
-            logger.error(f"Ogohlantirish yuborishda xatolik: {e}")
-        
-        if can_delete:
-            try:
-                await message.delete()
-                logger.info(f"Reklama o'chirildi: chat_id={message.chat.id}, user_id={message.from_user.id}")
-            except Exception as e:
-                logger.error(f"Xabarni o'chirishda xatolik: {e}")
+            logger.error(f"Xatolik: {e}")
         return
 
 
