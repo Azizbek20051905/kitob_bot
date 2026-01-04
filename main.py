@@ -28,12 +28,11 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     
     # Handlerlarni ro'yxatga olish (tartib muhim!)
-    # Buyruqlar birinchi bo'lishi kerak
-    dp.include_router(basic.router)  # Buyruqlar (/start, /help) birinchi
-    dp.include_router(admin.router)  # State filterli handlerlar avval
-    dp.include_router(broadcast.router)  # Reklama tarqatish
-    dp.include_router(books.router)  # Kitob qidirish
-    dp.include_router(groups.router)  # Guruh xabarlari uchun (reklama bloklash) - oxirgi
+    dp.include_router(groups.router)  # Guruh xabarlari (Anti-spam) - ENG BIRINCHI bo'lishi shart!
+    dp.include_router(basic.router)   # Buyruqlar (/start, /help)
+    dp.include_router(admin.router)   # Admin
+    dp.include_router(broadcast.router) # Broadcast
+    dp.include_router(books.router)   # Kitob qidirish (qolgan xabarlar)
     
     # Bot ma'lumotlarini tekshirish
     try:

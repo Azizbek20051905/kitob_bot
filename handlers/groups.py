@@ -8,6 +8,8 @@ from utils.helpers import is_admin
 import re
 import config
 import logging
+import asyncio
+from aiogram.filters import BaseFilter
 
 logger = logging.getLogger(__name__)
 
@@ -212,65 +214,71 @@ def contains_advertisement(text: str) -> bool:
 
     return False
 
-@router.message(F.chat.type.in_([ "group", "supergroup"]), flags={"block": False})
+class SpamFilter(BaseFilter):
+    async def __call__(self, message: Message) -> bool:
+        # 1. Bot xabarlari va botlar e'tiborsiz qoldiriladi
+        if not message.from_user or message.from_user.is_bot:
+            return False
+            
+        # 2. Bot adminlari (config.ADMIN_ID) e'tiborsiz qoldiriladi (reklama tashlay oladi)
+        if is_admin(message.from_user.id):
+            return False
+            
+        # 3. Guruh adminlari ham e'tiborsiz qoldiriladi
+        if await is_group_admin(message.bot, message.chat.id, message.from_user.id):
+            return False
+            
+        # 4. Botning o'chirish huquqini tekshirish (agar o'chira olmasa, baribir spam deb topmaymiz,
+        # chunki foydasi yo'q va log to'lib ketadi)
+        if not await can_bot_delete_messages(message.bot, message.chat.id):
+            return False
+            
+        # 5. Forward qilingan kanal postlari - bu SPAM
+        if getattr(message, 'forward_from_chat', None) and getattr(message.forward_from_chat, 'type', None) == 'channel':
+            return True
+            
+        # 6. Matn tarkibini tekshirish
+        text_to_check = message.text or message.caption or ""
+        
+        # Buyruqlar (/start) spam emas (admin tekshiruvidan o'tmagan memberlar uchun ham)
+        if text_to_check.startswith("/"):
+            return False
+            
+        if contains_advertisement(text_to_check):
+            return True
+            
+        # 7. Entities (yashirin linklar)
+        if message.entities:
+            for ent in message.entities:
+                if ent.type in ["url", "text_link", "mention", "email"]:
+                    return True
+        
+        if message.caption_entities:
+            for ent in message.caption_entities:
+                if ent.type in ["url", "text_link", "mention", "email"]:
+                    return True
+                    
+        return False
+
+@router.message(F.chat.type.in_(["group", "supergroup"]), SpamFilter(), flags={"block": False})
 async def anti_advertisement_guard(message: Message):
-    """Reklama xabarlarini o'chirish va ogohlantirish"""
-    # Bot xabarlari va botlar e'tiborsiz qoldiriladi
-    if not message.from_user or message.from_user.is_bot:
-        return
-    
-    # Buyruqlarni (commands) e'tiborsiz qoldirish
-    if message.text and message.text.startswith("/"):
-        return
-    
-    # Bot adminlari (config.ADMIN_ID) e'tiborsiz qoldiriladi
-    if is_admin(message.from_user.id):
-        return
-    
-    # Guruh adminlari ham e'tiborsiz qoldiriladi
-    if await is_group_admin(message.bot, message.chat.id, message.from_user.id):
-        return
-
-    can_delete = await can_bot_delete_messages(message.bot, message.chat.id)
-    if not can_delete:
-        return
-
-    # Forward qilingan kanal postlari
-    if getattr(message, 'forward_from_chat', None) and getattr(message.forward_from_chat, 'type', None) == 'channel':
-        try:
-             await message.delete()
-             await message.answer(f"⚠️ {message.from_user.full_name}, bu guruhda reklama taqiqlangan.")
-        except:
-             pass
-        return
-
-    # Matn yoki caption ni tekshirish
-    text_to_check = message.text or message.caption or ""
-    has_advertisement = contains_advertisement(text_to_check)
-    
-    # Entities orqali linklar va mentionlarni tekshirish (YASHIRIN LINKLARNI TOPISH UCHUN)
-    if not has_advertisement and message.entities:
-        for ent in message.entities:
-            # text_link bu [matn](link) ko'rinishidagi linklar
-            if ent.type in ["url", "text_link", "mention", "email"]:
-                has_advertisement = True
-                break
-    
-    # Caption entities
-    if not has_advertisement and message.caption_entities:
-        for ent in message.caption_entities:
-            if ent.type in ["url", "text_link", "mention", "email"]:
-                has_advertisement = True
-                break
-
-    # Agar reklama topilsa
-    if has_advertisement:
-        try:
-            await message.delete()
-            # Foyealanuvchiga qisqa ogohlantirish
-            await message.answer(f"⚠️ {message.from_user.full_name}, reklama yoki havola tashlash mumkin emas.")
-        except Exception as e:
-            logger.error(f"Xatolik: {e}")
-        return
+    """
+    Faqat SpamFilter True qaytarganida ishlaydi (ya'ni reklama aniqlanganda).
+    Reklama xabarlarini o'chiradi va ogohlantiradi.
+    """
+    try:
+        # Xabarni o'chirish
+        await message.delete()
+        
+        # Ogohlantirish (foydalanuvchini belgilab)
+        # Xabar o'chirilmaydi (user talabi)
+        user_mention = f"[{message.from_user.full_name}](tg://user?id={message.from_user.id})"
+        await message.answer(
+            f"⚠️ {user_mention}, guruhda reklama yoki havola tashlash taqiqlangan!",
+            parse_mode="Markdown"
+        )
+        
+    except Exception as e:
+        logger.error(f"Spamni tozalashda xatolik: {e}")
 
 

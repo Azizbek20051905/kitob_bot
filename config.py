@@ -39,4 +39,4 @@ ALLOWED_FILE_TYPES = {
 }
 
 # Maksimal fayl hajmi (MB)
-MAX_FILE_SIZE = 700000
+MAX_FILE_SIZE = 7000000

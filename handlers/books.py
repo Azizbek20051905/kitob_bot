@@ -290,7 +290,8 @@ async def send_book(message: Message, book: dict):
                             f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
                             f"📁 Turi: {book['file_type']}\n"
                             f"💾 Hajmi: {format_file_size(book['file_size'])}\n"
-                            f"📅 Yuklangan: {book['upload_date'][:10]}",
+                            f"📅 Yuklangan: {book['upload_date'][:10]}"
+                            f"\n\n@Xudoyorxon0325\\_bot",
                     parse_mode="Markdown",
                     reply_to_message_id=reply_to_id  # Guruhlarda reply qilamiz
                 )
@@ -307,10 +308,11 @@ async def send_book(message: Message, book: dict):
                     chat_id=message.chat.id,
                     document=book['file_id'],
                     caption=f"📖 **{escape_markdown(book['title'])}**\n\n"
-                           f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
-                           f"📁 Turi: {book['file_type']}\n"
-                           f"💾 Hajmi: {format_file_size(book['file_size'])}\n"
-                           f"📅 Yuklangan: {book['upload_date'][:10]}",
+                            f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
+                            f"📁 Turi: {book['file_type']}\n"
+                            f"💾 Hajmi: {format_file_size(book['file_size'])}\n"
+                            f"📅 Yuklangan: {book['upload_date'][:10]}"
+                            f"\n\n@Xudoyorxon0325\\_bot",
                     parse_mode="Markdown",
                     reply_to_message_id=reply_to_id  # Guruhlarda reply qilamiz
                 )
@@ -319,10 +321,11 @@ async def send_book(message: Message, book: dict):
                     chat_id=message.chat.id,
                     audio=book['file_id'],
                     caption=f"🎵 **{escape_markdown(book['title'])}**\n\n"
-                           f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
-                           f"📁 Turi: {book['file_type']}\n"
-                           f"💾 Hajmi: {format_file_size(book['file_size'])}\n"
-                           f"📅 Yuklangan: {book['upload_date'][:10]}",
+                            f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
+                            f"📁 Turi: {book['file_type']}\n"
+                            f"💾 Hajmi: {format_file_size(book['file_size'])}\n"
+                            f"📅 Yuklangan: {book['upload_date'][:10]}"
+                            f"\n\n@Xudoyorxon0325\\_bot",
                     parse_mode="Markdown",
                     reply_to_message_id=reply_to_id  # Guruhlarda reply qilamiz
                 )
@@ -586,7 +589,8 @@ async def send_book_callback(callback: CallbackQuery):
                             f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
                             f"📁 Turi: {book['file_type']}\n"
                             f"💾 Hajmi: {format_file_size(book['file_size'])}\n"
-                            f"📅 Yuklangan: {book['upload_date'][:10]}",
+                            f"📅 Yuklangan: {book['upload_date'][:10]}"
+                            f"\n\n@Xudoyorxon0325\\_bot",
                     parse_mode="Markdown",
                     reply_to_message_id=None  # Guruhlarda ham reply qilmaymiz
                 )
@@ -607,7 +611,8 @@ async def send_book_callback(callback: CallbackQuery):
                            f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
                            f"📁 Turi: {book['file_type']}\n"
                            f"💾 Hajmi: {format_file_size(book['file_size'])}\n"
-                           f"📅 Yuklangan: {book['upload_date'][:10]}",
+                           f"📅 Yuklangan: {book['upload_date'][:10]}"
+                           f"\n\n@Xudoyorxon0325\\_bot",
                     parse_mode="Markdown",
                     reply_to_message_id=None  # Guruhlarda ham reply qilmaymiz
                 )
@@ -619,7 +624,8 @@ async def send_book_callback(callback: CallbackQuery):
                            f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
                            f"📁 Turi: {book['file_type']}\n"
                            f"💾 Hajmi: {format_file_size(book['file_size'])}\n"
-                           f"📅 Yuklangan: {book['upload_date'][:10]}",
+                           f"📅 Yuklangan: {book['upload_date'][:10]}"
+                           f"\n\n@Xudoyorxon0325\\_bot",
                     parse_mode="Markdown",
                     reply_to_message_id=None  # Guruhlarda ham reply qilmaymiz
                 )
@@ -1023,9 +1029,14 @@ async def send_book_parts_callback(callback: CallbackQuery):
     sent_count = 0
     for idx, file in enumerate(files, 1):
         caption = (
-            f"{icon} *{escape_markdown(book['title'])}*\n"
-            f"Qism {idx}/{len(files)}\n"
-            f"💾 Hajmi: {format_file_size(file['file_size'] or 0)}"
+            f"📖 **{escape_markdown(book['title'])}**\n\n"
+            f"👤 Muallif: {escape_markdown(book['author'] or 'Noma\'lum')}\n"
+            f"📼 Qism {idx}/{len(files)}\n"
+            f"📁 Turi: {book['file_type']}\n"
+            f"💾 Hajmi: {format_file_size(book['file_size'] or 0)}\n"
+            f"📅 Yuklangan: {book['upload_date'][:10]}"
+            f"\n\n@Xudoyorxon0325\\_bot"
+
         )
         from_chat = file.get('storage_chat_id') or book.get('storage_chat_id') or config.STORAGE_CHANNEL_ID
         storage_message_id = file.get('storage_message_id')
